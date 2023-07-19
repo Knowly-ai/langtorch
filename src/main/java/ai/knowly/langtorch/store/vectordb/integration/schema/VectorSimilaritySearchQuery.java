@@ -12,7 +12,7 @@ import lombok.NonNull;
 @Data
 @Builder(toBuilder = true, setterPrefix = "set")
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class SimilaritySearchQuery {
+public class VectorSimilaritySearchQuery {
   @Builder.Default Map<String, String> filter = new HashMap<>();
   @NonNull private List<Double> query;
   @NonNull private Long topK;

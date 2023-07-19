@@ -13,7 +13,8 @@ import ai.knowly.langtorch.store.vectordb.integration.pgvector.schema.PGVectorQu
 import ai.knowly.langtorch.store.vectordb.integration.pgvector.schema.PGVectorStoreSpec;
 import ai.knowly.langtorch.store.vectordb.integration.pgvector.schema.PGVectorValues;
 import ai.knowly.langtorch.store.vectordb.integration.pgvector.schema.distance.DistanceStrategy;
-import ai.knowly.langtorch.store.vectordb.integration.schema.SimilaritySearchQuery;
+import ai.knowly.langtorch.store.vectordb.integration.schema.StringSimilaritySearchQuery;
+import ai.knowly.langtorch.store.vectordb.integration.schema.VectorSimilaritySearchQuery;
 import com.google.common.flogger.FluentLogger;
 import com.google.common.primitives.Floats;
 import com.google.inject.Inject;
@@ -106,11 +107,21 @@ public class PGVectorStore implements VectorStore {
   }
 
   /**
-   * Performs a similarity search using a vector query and returns a list of pairs containing the
-   * schema documents and their corresponding similarity scores.
+   * Performs a similarity search using a vector representation of passed string and returns a
+   * list of documents containing their corresponding similarity scores.
    */
   @Override
-  public List<DomainDocument> similaritySearch(SimilaritySearchQuery similaritySearchQuery) {
+  public List<DomainDocument> similaritySearch(StringSimilaritySearchQuery similaritySearchQuery) {
+    List<Double> vector = createVector(similaritySearchQuery.getQuery());
+    return similaritySearch(similaritySearchQuery.toVectorSimilaritySearchQuery(vector));
+  }
+
+  /**
+   * Performs a similarity search using a vector query and returns a list of documents
+   * containing their corresponding similarity scores.
+   */
+  @Override
+  public List<DomainDocument> similaritySearch(VectorSimilaritySearchQuery similaritySearchQuery) {
     float[] queryVectorValuesAsFloats = getFloatVectorValues(similaritySearchQuery.getQuery());
     double[] queryVectorValuesAsDoubles = getDoubleVectorValues(queryVectorValuesAsFloats);
     List<DomainDocument> documentsWithScores;
@@ -280,12 +291,16 @@ public class PGVectorStore implements VectorStore {
   }
 
   private List<Double> createVector(DomainDocument document) {
+    return createVector(document.getPageContent());
+  }
+
+  private List<Double> createVector(String input) {
     EmbeddingOutput embeddingOutput =
-        embeddingsProcessor.run(
-            EmbeddingInput.builder()
-                .setModel(pgVectorStoreSpec.getModel())
-                .setInput(Collections.singletonList(document.getPageContent()))
-                .build());
+            embeddingsProcessor.run(
+                    EmbeddingInput.builder()
+                            .setModel(pgVectorStoreSpec.getModel())
+                            .setInput(Collections.singletonList(input))
+                            .build());
     return embeddingOutput.getValue().get(0).getVector();
   }
 

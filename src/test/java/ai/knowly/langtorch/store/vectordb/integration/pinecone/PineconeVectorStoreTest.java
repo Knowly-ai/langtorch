@@ -2,6 +2,7 @@ package ai.knowly.langtorch.store.vectordb.integration.pinecone;
 
 import static com.google.common.truth.Truth.assertThat;
 import static java.util.Collections.emptyList;
+import static org.mockito.Mockito.when;
 
 import ai.knowly.langtorch.processor.EmbeddingProcessor;
 import ai.knowly.langtorch.schema.embeddings.Embedding;
@@ -16,7 +17,9 @@ import ai.knowly.langtorch.store.vectordb.integration.pinecone.schema.dto.query.
 import ai.knowly.langtorch.store.vectordb.integration.pinecone.schema.dto.query.QueryResponse;
 import ai.knowly.langtorch.store.vectordb.integration.pinecone.schema.dto.update.UpdateResponse;
 import ai.knowly.langtorch.store.vectordb.integration.pinecone.schema.dto.upsert.UpsertResponse;
-import ai.knowly.langtorch.store.vectordb.integration.schema.SimilaritySearchQuery;
+import ai.knowly.langtorch.store.vectordb.integration.schema.StringSimilaritySearchQuery;
+import ai.knowly.langtorch.store.vectordb.integration.schema.VectorSimilaritySearchQuery;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -27,9 +30,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import java.util.*;
-import static com.google.common.truth.Truth.assertThat;
-import static java.util.Collections.emptyList;
+
 
 @ExtendWith(MockitoExtension.class)
 final class PineconeVectorStoreTest {
@@ -68,6 +69,35 @@ final class PineconeVectorStoreTest {
   }
 
   @Test
+  void testSimilaritySearchStringWithScore() {
+    double score = 0.5;
+    String content = "Content";
+
+    List<Match> matches = new ArrayList<>();
+    Map<String, String> map = new HashMap<>();
+    map.put(textKey, content);
+    Match match =
+            new Match(
+                    UUID.randomUUID().toString(), score, emptyList(), SparseValues.builder().build(), map);
+    matches.add(match);
+
+    QueryResponse queryResponse = new QueryResponse(matches, "");
+    Mockito.when(pineconeService.query(ArgumentMatchers.any())).thenReturn(queryResponse);
+    List<Embedding> embeddings = ImmutableList.of(Embedding.of(List.of()));
+    EmbeddingOutput embeddingOutput = EmbeddingOutput.of(EmbeddingType.OPEN_AI, embeddings);
+    when(embeddingProcessor.run(ArgumentMatchers.any())).thenReturn(embeddingOutput);
+
+    // Act.
+    List<DomainDocument> result =
+            pineconeVectorStore.similaritySearch(
+                    StringSimilaritySearchQuery.builder().setQuery("").setTopK(0L).build());
+    // Assert.
+    assertThat(result).isNotEmpty();
+    assertThat(result.get(0).getPageContent()).isEqualTo(content);
+    assertThat(result.get(0).getSimilarityScore().orElse(-1.0)).isEqualTo(score);
+  }
+
+  @Test
   void testSimilaritySearchVectorWithScore() {
     double score = 0.5;
     String content = "Content";
@@ -86,7 +116,7 @@ final class PineconeVectorStoreTest {
     // Act.
     List<DomainDocument> result =
         pineconeVectorStore.similaritySearch(
-            SimilaritySearchQuery.builder().setQuery(emptyList()).setTopK(0L).build());
+            VectorSimilaritySearchQuery.builder().setQuery(emptyList()).setTopK(0L).build());
     // Assert.
     assertThat(result).isNotEmpty();
     assertThat(result.get(0).getPageContent()).isEqualTo(content);
@@ -100,7 +130,7 @@ final class PineconeVectorStoreTest {
     // Act.
     List<DomainDocument> result =
         pineconeVectorStore.similaritySearch(
-            SimilaritySearchQuery.builder().setQuery(emptyList()).setTopK(0L).build());
+            VectorSimilaritySearchQuery.builder().setQuery(emptyList()).setTopK(0L).build());
     // Assert.
     assertThat(result).isEmpty();
   }

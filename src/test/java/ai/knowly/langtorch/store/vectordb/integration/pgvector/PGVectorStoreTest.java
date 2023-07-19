@@ -9,7 +9,9 @@ import ai.knowly.langtorch.schema.io.Metadata;
 import ai.knowly.langtorch.store.vectordb.PGVectorStore;
 import ai.knowly.langtorch.store.vectordb.integration.pgvector.schema.PGVectorStoreSpec;
 import ai.knowly.langtorch.store.vectordb.integration.pgvector.schema.distance.DistanceStrategies;
-import ai.knowly.langtorch.store.vectordb.integration.schema.SimilaritySearchQuery;
+import ai.knowly.langtorch.store.vectordb.integration.schema.StringSimilaritySearchQuery;
+import ai.knowly.langtorch.store.vectordb.integration.schema.VectorSimilaritySearchQuery;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.pgvector.PGvector;
 import kotlin.Triple;
@@ -77,14 +79,93 @@ final class PGVectorStoreTest {
     assertThat(isSuccessful).isEqualTo(true);
   }
 
+
+  @Test
+  void testSimilaritySearchStringWithScoreEuclidean() throws SQLException {
+    pgVectorStore =
+            new PGVectorStore(
+                    embeddingProcessor, pgVectorStoreSpec, pgVectorService, DistanceStrategies.euclidean());
+
+    Triple<String, String, StringSimilaritySearchQuery> queryData = prepareSimilaritySearchStringQuery();
+    StringSimilaritySearchQuery query = queryData.getThird();
+    String firstPageContent = queryData.getFirst();
+    String secondPageContent = queryData.getSecond();
+
+    // Act.
+    List<DomainDocument> documentsWithScores = pgVectorStore.similaritySearch(query);
+    // Assert.
+    double firstDocumentScore = documentsWithScores.get(0).getSimilarityScore().orElse(-1.0);
+    double secondDocumentScore = documentsWithScores.get(1).getSimilarityScore().orElse(-1.0);
+    String firstDocumentPageContent = documentsWithScores.get(0).getPageContent();
+    String secondDocumentPageContent = documentsWithScores.get(1).getPageContent();
+    assertThat(documentsWithScores.size()).isEqualTo(3);
+    assertThat(firstDocumentScore).isEqualTo(0);
+    assertThat(firstDocumentScore).isLessThan(secondDocumentScore);
+    assertThat(firstDocumentPageContent).isEqualTo(firstPageContent);
+    assertThat(secondDocumentPageContent).isEqualTo(secondPageContent);
+  }
+
+  @Test
+  void testSimilaritySearchStringWithScoreInnerProduct() throws SQLException {
+    pgVectorStore =
+            new PGVectorStore(
+                    embeddingProcessor,
+                    pgVectorStoreSpec,
+                    pgVectorService,
+                    DistanceStrategies.innerProduct());
+
+    Triple<String, String, StringSimilaritySearchQuery> queryData = prepareSimilaritySearchStringQuery();
+    StringSimilaritySearchQuery query = queryData.getThird();
+    String firstPageContent = queryData.getFirst();
+    String secondPageContent = queryData.getSecond();
+
+    // Act.
+    List<DomainDocument> documentsWithScores = pgVectorStore.similaritySearch(query);
+    // Assert.
+    double firstDocumentScore = documentsWithScores.get(0).getSimilarityScore().orElse(-1.0);
+    double secondDocumentScore = documentsWithScores.get(1).getSimilarityScore().orElse(-1.0);
+    String firstDocumentPageContent = documentsWithScores.get(0).getPageContent();
+    String secondDocumentPageContent = documentsWithScores.get(1).getPageContent();
+    assertThat(documentsWithScores.size()).isEqualTo(3);
+    assertThat(firstDocumentScore).isEqualTo(3);
+    assertThat(firstDocumentScore).isLessThan(secondDocumentScore);
+    assertThat(firstDocumentPageContent).isEqualTo(firstPageContent);
+    assertThat(secondDocumentPageContent).isEqualTo(secondPageContent);
+  }
+
+  @Test
+  void testSimilaritySearchStringWithScoreCosine() throws SQLException {
+    pgVectorStore =
+            new PGVectorStore(
+                    embeddingProcessor, pgVectorStoreSpec, pgVectorService, DistanceStrategies.cosine());
+
+    Triple<String, String, StringSimilaritySearchQuery> queryData = prepareSimilaritySearchStringQuery();
+    StringSimilaritySearchQuery query = queryData.getThird();
+    String firstPageContent = queryData.getFirst();
+    String secondPageContent = queryData.getSecond();
+
+    // Act.
+    List<DomainDocument> documentsWithScores = pgVectorStore.similaritySearch(query);
+    // Assert.
+    double firstDocumentScore = documentsWithScores.get(0).getSimilarityScore().orElse(-1.0);
+    double secondDocumentScore = documentsWithScores.get(1).getSimilarityScore().orElse(-1.0);
+    String firstDocumentPageContent = documentsWithScores.get(0).getPageContent();
+    String secondDocumentPageContent = documentsWithScores.get(1).getPageContent();
+    assertThat(documentsWithScores.size()).isEqualTo(3);
+    assertThat(Math.abs(firstDocumentScore - TOP_VECTOR_VALUE))
+            .isLessThan(Math.abs(secondDocumentScore - TOP_VECTOR_VALUE));
+    assertThat(firstDocumentPageContent).isEqualTo(firstPageContent);
+    assertThat(secondDocumentPageContent).isEqualTo(secondPageContent);
+  }
+
   @Test
   void testSimilaritySearchVectorWithScoreEuclidean() throws SQLException {
     pgVectorStore =
         new PGVectorStore(
             embeddingProcessor, pgVectorStoreSpec, pgVectorService, DistanceStrategies.euclidean());
 
-    Triple<String, String, SimilaritySearchQuery> queryData = prepareSimilaritySearchQuery();
-    SimilaritySearchQuery query = queryData.getThird();
+    Triple<String, String, VectorSimilaritySearchQuery> queryData = prepareSimilaritySearchQuery();
+    VectorSimilaritySearchQuery query = queryData.getThird();
     String firstPageContent = queryData.getFirst();
     String secondPageContent = queryData.getSecond();
 
@@ -111,8 +192,8 @@ final class PGVectorStoreTest {
             pgVectorService,
             DistanceStrategies.innerProduct());
 
-    Triple<String, String, SimilaritySearchQuery> queryData = prepareSimilaritySearchQuery();
-    SimilaritySearchQuery query = queryData.getThird();
+    Triple<String, String, VectorSimilaritySearchQuery> queryData = prepareSimilaritySearchQuery();
+    VectorSimilaritySearchQuery query = queryData.getThird();
     String firstPageContent = queryData.getFirst();
     String secondPageContent = queryData.getSecond();
 
@@ -136,8 +217,8 @@ final class PGVectorStoreTest {
         new PGVectorStore(
             embeddingProcessor, pgVectorStoreSpec, pgVectorService, DistanceStrategies.cosine());
 
-    Triple<String, String, SimilaritySearchQuery> queryData = prepareSimilaritySearchQuery();
-    SimilaritySearchQuery query = queryData.getThird();
+    Triple<String, String, VectorSimilaritySearchQuery> queryData = prepareSimilaritySearchQuery();
+    VectorSimilaritySearchQuery query = queryData.getThird();
     String firstPageContent = queryData.getFirst();
     String secondPageContent = queryData.getSecond();
 
@@ -200,7 +281,7 @@ final class PGVectorStoreTest {
     return embeddings;
   }
 
-  private Triple<String, String, SimilaritySearchQuery> prepareSimilaritySearchQuery()
+  private Triple<String, String, VectorSimilaritySearchQuery> prepareSimilaritySearchQuery()
       throws SQLException {
     String firstPageContent = "content 0";
     String secondPageContent = "content 1";
@@ -221,8 +302,38 @@ final class PGVectorStoreTest {
     when(resultSet.getObject(3)).thenReturn(textKey);
     when(resultSet.getObject(4)).thenReturn(firstPageContent, secondPageContent);
     double v = TOP_VECTOR_VALUE;
-    SimilaritySearchQuery query =
-        SimilaritySearchQuery.builder().setTopK(0L).setQuery(Arrays.asList(v, v, v)).build();
+    VectorSimilaritySearchQuery query =
+        VectorSimilaritySearchQuery.builder().setTopK(0L).setQuery(Arrays.asList(v, v, v)).build();
+    return new Triple<>(firstPageContent, secondPageContent, query);
+  }
+
+  private Triple<String, String, StringSimilaritySearchQuery> prepareSimilaritySearchStringQuery()
+          throws SQLException {
+    String firstPageContent = "content 0";
+    String secondPageContent = "content 1";
+    ResultSet resultSet = Mockito.mock(ResultSet.class);
+    double v = TOP_VECTOR_VALUE;
+    List<Embedding> embeddings = ImmutableList.of(Embedding.of(Arrays.asList(v, v, v)));
+    EmbeddingOutput embeddingOutput = EmbeddingOutput.of(EmbeddingType.OPEN_AI, embeddings);
+    when(embeddingProcessor.run(ArgumentMatchers.any())).thenReturn(embeddingOutput);
+    when(pgVectorService.prepareStatement(ArgumentMatchers.any())).thenReturn(preparedStatement);
+    when(preparedStatement.executeQuery()).thenReturn(resultSet);
+    when(resultSet.next()).thenReturn(true, true, true, false);
+    when(resultSet.getObject(1))
+            .thenReturn(
+                    UUID.randomUUID().toString(),
+                    UUID.randomUUID().toString(),
+                    UUID.randomUUID().toString());
+    when(resultSet.getObject(2))
+            .thenReturn(
+                    new PGvector(new float[] {TOP_VECTOR_VALUE, TOP_VECTOR_VALUE, TOP_VECTOR_VALUE}),
+                    new PGvector(new float[] {2.1f, 2.2f, 2.3f}),
+                    new PGvector(new float[] {-3, -3, -3}));
+    when(resultSet.getObject(3)).thenReturn(textKey);
+    when(resultSet.getObject(4)).thenReturn(firstPageContent, secondPageContent);
+
+    StringSimilaritySearchQuery query =
+            StringSimilaritySearchQuery.builder().setTopK(0L).setQuery("").build();
     return new Triple<>(firstPageContent, secondPageContent, query);
   }
 }

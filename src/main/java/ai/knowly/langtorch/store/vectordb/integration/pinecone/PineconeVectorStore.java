@@ -16,9 +16,10 @@ import ai.knowly.langtorch.store.vectordb.integration.pinecone.schema.dto.update
 import ai.knowly.langtorch.store.vectordb.integration.pinecone.schema.dto.update.UpdateResponse;
 import ai.knowly.langtorch.store.vectordb.integration.pinecone.schema.dto.upsert.UpsertRequest;
 import ai.knowly.langtorch.store.vectordb.integration.pinecone.schema.dto.upsert.UpsertResponse;
+import ai.knowly.langtorch.store.vectordb.integration.schema.StringSimilaritySearchQuery;
 import com.google.common.collect.ImmutableList;
 
-import ai.knowly.langtorch.store.vectordb.integration.schema.SimilaritySearchQuery;
+import ai.knowly.langtorch.store.vectordb.integration.schema.VectorSimilaritySearchQuery;
 import com.google.common.flogger.FluentLogger;
 import lombok.NonNull;
 
@@ -85,12 +86,7 @@ public class PineconeVectorStore implements VectorStore {
    * @return an instance of {@link Vector}
    */
   private Vector createVector(DomainDocument document) {
-    EmbeddingOutput embeddingOutput =
-        embeddingProcessor.run(
-            EmbeddingInput.builder()
-                .setModel(pineconeVectorStoreSpec.getModel())
-                .setInput(Collections.singletonList(document.getPageContent()))
-                .build());
+    EmbeddingOutput embeddingOutput = createEmbeddingOutput(document.getPageContent());
     return Vector.builder()
         .setId(document.getId().orElse(UUID.randomUUID().toString()))
         .setMetadata(document.getMetadata().orElse(Metadata.getDefaultInstance()).getValue())
@@ -99,11 +95,22 @@ public class PineconeVectorStore implements VectorStore {
   }
 
   /**
-   * Performs a similarity search using a vector query and returns a list of pairs containing the
-   * schema documents and their corresponding similarity scores.
+   * Performs a similarity search using a vector represenation of string query and returns a list of documents
+   * containing their corresponding similarity scores.
    */
   @Override
-  public List<DomainDocument> similaritySearch(SimilaritySearchQuery similaritySearchQuery) {
+  public List<DomainDocument> similaritySearch(StringSimilaritySearchQuery similaritySearchQuery) {
+    List<Double> vector = createEmbeddingOutput(similaritySearchQuery.getQuery())
+            .getValue().get(0).getVector();
+    return similaritySearch(similaritySearchQuery.toVectorSimilaritySearchQuery(vector));
+  }
+
+  /**
+   * Performs a similarity search using a vector query and returns a list of documents
+   * containing their corresponding similarity scores.
+   */
+  @Override
+  public List<DomainDocument> similaritySearch(VectorSimilaritySearchQuery similaritySearchQuery) {
 
     QueryRequest.QueryRequestBuilder requestBuilder =
         QueryRequest.builder()
@@ -120,7 +127,7 @@ public class PineconeVectorStore implements VectorStore {
     // create mapping of PineCone metadata to schema meta data
     if (response.getMatches() != null) {
       for (Match match : response.getMatches()) {
-        if (!pineconeVectorStoreSpec.getTextKey().isPresent()) {
+        if (pineconeVectorStoreSpec.getTextKey().isEmpty()) {
           continue;
         }
         Metadata metadata =
@@ -145,7 +152,7 @@ public class PineconeVectorStore implements VectorStore {
 
   @Override
   public boolean updateDocuments(List<DomainDocument> documents) {
-    if (!this.executorService.isPresent()) {
+    if (this.executorService.isEmpty()) {
       this.executorService = Optional.of(Executors.newFixedThreadPool(16));
     }
     ExecutorService localExecutorService = this.executorService.get();
@@ -211,5 +218,13 @@ public class PineconeVectorStore implements VectorStore {
       return false;
     }
     return true;
+  }
+
+  private EmbeddingOutput createEmbeddingOutput(String input) {
+    return embeddingProcessor.run(
+            EmbeddingInput.builder()
+                    .setModel(pineconeVectorStoreSpec.getModel())
+                    .setInput(Collections.singletonList(input))
+                    .build());
   }
 }
